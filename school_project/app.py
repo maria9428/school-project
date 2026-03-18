@@ -1,17 +1,23 @@
 from flask import Flask, render_template, request, redirect, session, url_for
-import pymysql
+import sqlite3
 
 app= Flask(__name__)
 app.secret_key="schoolsecret"
 
-db=pymysql.connect(
-    host="127.0.0.1",
-    user="root",
-    password="Abc@12345",
-    database="school"
-    )
+db = sqlite3.connect("school.db", check_same_thread=False)
+cursor = db.cursor()
 
-cursor=db.cursor()
+# Create table if not exists
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS student (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT,
+    class TEXT,
+    roll TEXT
+)
+""")
+db.commit()
+
 
 @app.route("/")
 def home():
@@ -22,11 +28,8 @@ def submit():
     name=request.form["name"]
     student_class=request.form["class"]
     roll=request.form["roll"]
-
-    sql="insert into student (name,class,roll) VALUES (%s,%s,%s)"
-    values=(name,student_class,roll)
-
-    cursor.execute(sql, values)
+    sql = "INSERT INTO student (name, class, roll) VALUES (?, ?, ?)"
+    cursor.execute(sql, (name, class_name, roll))
     db.commit()
     return "Student saved in database!"
 
@@ -37,7 +40,7 @@ def students():
     query=request.args.get("q")
 
     if query:
-        sql="select * from student where name like %s or class like %s or roll like %s"
+        sql="select * from student where name like ? or class like ? or roll like ?"
         cursor.execute(sql,('%'+query+'%','%'+query+'%','%'+query+'%'))
     else:
         cursor.execute("select * from student")
@@ -55,7 +58,7 @@ def dashboard():
 def delete(id):
     if 'user' not in session:
         return redirect("/login")
-    sql = "DELETE FROM student WHERE id=%s"
+    sql = "DELETE FROM student WHERE id=?"
     cursor.execute(sql, (id,))
     db.commit()
     return redirect("/students")
@@ -64,7 +67,7 @@ def delete(id):
 def edit(id):
     if 'user' not in session:
         return redirect("/login")
-    cursor.execute("SELECT * FROM student WHERE id=%s", (id,))
+    cursor.execute("SELECT * FROM student WHERE id=?", (id,))
     student = cursor.fetchone()
     return render_template("edit.html", student=student)
 
@@ -76,7 +79,7 @@ def update(id):
     class_name = request.form['class']
     roll = request.form['roll']
 
-    sql = "UPDATE student SET name=%s, class=%s, roll=%s WHERE id=%s"
+    sql = "UPDATE student SET name=?, class=?, roll=? WHERE id=?"
     cursor.execute(sql, (name, class_name, roll, id))
     db.commit()
 
